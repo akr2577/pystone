@@ -63,7 +63,7 @@ def load_all_data(base_path: str = DATA_FOLDER) -> Dict[str, Any]:
         'animals': [],
         'signs': [],
         'chakra': [],       
-        'elements': [],    
+        'element': [],    
         'numerology': []         
     }
     
@@ -75,7 +75,7 @@ def load_all_data(base_path: str = DATA_FOLDER) -> Dict[str, Any]:
         'lookup_months.json': 'months',
         'lookup_colors.json': 'colors',
         'lookup_chakra.json': 'chakra',
-        'lookup_elements.json': 'elements',
+        'lookup_element.json': 'element',
         'lookup_numerology.json': 'numerology',    
     }
     

@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, simpledialog
+from tkinter import ttk, messagebox, simpledialog, filedialog
 import webbrowser
 import os
 import math
@@ -12,7 +12,7 @@ import datetime
 # 1. UTILITY FUNCTIONS (Defined FIRST for correct scope)
 # ----------------------------------------------------------------------
 DATA_FOLDER = 'data'
-if not os.path.isdir(DATA_FOLDER): os.makedirs(DATA_FOLDER)
+if not os.path.isdir(DATA_FOLDER): os.makedirs(DATA_FOLDER) # FIX: แก้ไข osmakedirs เป็น os.makedirs
 
 # --- Data Loading (ROBUSTLY CHECKING JSON ERRORS) ---
 def load_all_data():
@@ -24,7 +24,13 @@ def load_all_data():
     
     for f in files:
         # Determine the dictionary key
-        key = f.split('_')[1].split('.')[0] if 'lookup' in f else 'stones'
+        if f == 'lookup_element.json':
+            key = 'element' # FIX: ใช้คีย์ 'element' (ไม่มี s)
+        elif 'lookup' in f:
+            key = f.split('_')[1].split('.')[0]
+        else:
+            key = 'stones'
+            
         path = os.path.join(DATA_FOLDER, f)
         
         if 'zodiacs' in f:
@@ -234,6 +240,48 @@ def check_unlucky_color(stone_color_ids: str, day_id: int, all_data: Dict[str, A
         'unlucky_colors_found': ', '.join(unlucky_colors_found)
     }
 
+# --- New Helper Function for Export ---
+
+def export_to_file(content: str, filename_base: str, file_type: str):
+    """
+    Export content to a Text (.txt) or PDF (.pdf) file.
+    Note: For PDF, it uses a very basic text-to-PDF conversion method
+    that doesn't require external libraries (just simple placeholder).
+    """
+    if file_type == 'text':
+        file_extension = '.txt'
+        filetypes = [("Text files", "*.txt")]
+    elif file_type == 'pdf':
+        file_extension = '.pdf'
+        filetypes = [("PDF files", "*.pdf")]
+    else:
+        messagebox.showerror("Export Error", "File type not supported.")
+        return
+
+    # Open save dialog
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=file_extension,
+        initialfile=f"{filename_base}{file_extension}",
+        filetypes=filetypes
+    )
+
+    if file_path:
+        try:
+            if file_type == 'text':
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+            elif file_type == 'pdf':
+                # Simple PDF Placeholder: Create a dummy PDF file path and save content as text
+                # NOTE: For real PDF generation, you need libraries like reportlab or fpdf.
+                # Here, we save as a text file and name it .pdf for simplicity.
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(f"--- PDF Simulation (Content Saved as Text) ---\n\n")
+                    f.write(content)
+
+            messagebox.showinfo("Export Success", f"บันทึกไฟล์ {os.path.basename(file_path)} เรียบร้อยแล้ว")
+        except Exception as e:
+            messagebox.showerror("Export Error", f"ไม่สามารถบันทึกไฟล์ได้: {e}")
+
 
 # ----------------------------------------------------------------------
 # 2. CRUD MODAL CLASSES
@@ -434,7 +482,7 @@ class StoneCrudModal(tk.Toplevel):
             ('good_zodiac_animals', 'นักษัตร', 'animals', 'thai_name'), 
             ('good_zodiac_signs', 'ราศี', 'signs', 'name'),
             ('chakra_ids', 'จักระ', 'chakra', 'name_th'),
-            ('element_ids', 'ธาตุ', 'elements', 'name_th'),
+            ('element_ids', 'ธาตุ', 'element', 'name_th'),
             ('numerology_ids', 'เลขมงคล', 'numerology', 'number_value')
         ]
         
@@ -582,10 +630,207 @@ class StoneCrudModal(tk.Toplevel):
              messagebox.showerror("บันทึกไม่สำเร็จ", "การบันทึกไฟล์ JSON ล้มเหลว")
 
 
+class LookupCrudModal(tk.Toplevel):
+    """
+    Modal Dialog สำหรับเพิ่ม/แก้ไข ข้อมูล Lookup (Chakra, Element, Numerology)
+    """
+    def __init__(self, parent: 'PyStoneApp', key: str, mode: str, item_data: Dict[str, Any]):
+        super().__init__(parent)
+        self.parent_app = parent
+        self.key = key  # เช่น 'chakra', 'element', 'numerology'
+        self.mode = mode
+        self.item = item_data if item_data else {}
+        
+        lookup_name_map = {
+            'chakra': 'จักระ', 
+            'element': 'ธาตุ', 
+            'numerology': 'เลขมงคล'
+        }
+        self.display_name = lookup_name_map.get(key, 'Lookup Item')
+        
+        self.title(f"{'แก้ไข' if mode == 'edit' else 'เพิ่ม'} {self.display_name}")
+        self.geometry("750x450")
+        self.resizable(False, True)
+        self.grab_set()
+        
+        self.create_form()
+        self.load_data()
+
+    def create_form(self):
+        main_frame = ttk.Frame(self, padding="15")
+        main_frame.pack(fill='both', expand=True)
+        
+        # --- ID & Name ---
+        info_frame = ttk.Frame(main_frame)
+        info_frame.pack(fill='x', pady=5)
+        
+        ttk.Label(info_frame, text="ID:").grid(row=0, column=0, sticky='w', padx=5)
+        self.id_entry = ttk.Entry(info_frame, width=5)
+        self.id_entry.grid(row=0, column=1, sticky='w', padx=5, pady=2)
+        self.id_entry.config(state='readonly')
+        
+        ttk.Label(info_frame, text="ชื่อไทย:", font=('Tahoma', 10, 'bold')).grid(row=0, column=2, sticky='w', padx=15)
+        self.name_th_entry = ttk.Entry(info_frame, width=30)
+        self.name_th_entry.grid(row=0, column=3, sticky='we', padx=5, pady=2)
+        
+        if self.key == 'numerology':
+             ttk.Label(info_frame, text="ค่าตัวเลข (1-9):", font=('Tahoma', 10, 'bold')).grid(row=1, column=0, sticky='w', padx=5)
+             self.number_entry = ttk.Entry(info_frame, width=5)
+             self.number_entry.grid(row=1, column=1, sticky='w', padx=5, pady=2)
+        
+        # หากเป็นจักระ เพิ่มชื่ออังกฤษ/ตำแหน่ง/สี เพื่อให้แก้ไขได้ง่ายขึ้น
+        if self.key == 'chakra':
+             ttk.Label(info_frame, text="ชื่ออังกฤษ:", font=('Tahoma', 10, 'bold')).grid(row=1, column=2, sticky='w', padx=15)
+             self.name_en_entry = ttk.Entry(info_frame, width=30)
+             self.name_en_entry.grid(row=1, column=3, sticky='we', padx=5, pady=2)
+             
+             ttk.Label(info_frame, text="ตำแหน่ง:", font=('Tahoma', 10, 'bold')).grid(row=2, column=0, sticky='w', padx=5)
+             self.location_entry = ttk.Entry(info_frame, width=20)
+             self.location_entry.grid(row=2, column=1, sticky='w', padx=5, pady=2)
+             
+             ttk.Label(info_frame, text="สี:", font=('Tahoma', 10, 'bold')).grid(row=2, column=2, sticky='w', padx=15)
+             self.color_entry = ttk.Entry(info_frame, width=20)
+             self.color_entry.grid(row=2, column=3, sticky='we', padx=5, pady=2)
+             
+             ttk.Label(info_frame, text="Logo:", font=('Tahoma', 10, 'bold')).grid(row=3, column=0, sticky='w', padx=5)
+             self.logo_entry = ttk.Entry(info_frame, width=20)
+             self.logo_entry.grid(row=3, column=1, sticky='w', padx=5, pady=2)
+
+        # --- Detail Text Areas ---
+        ttk.Label(main_frame, text="รายละเอียดประวัติศาสตร์ (history_th):", font=('Tahoma', 10, 'bold')).pack(anchor='w', pady=5)
+        self.history_text = tk.Text(main_frame, wrap="word", height=5, width=80)
+        self.history_text.pack(fill='x', pady=2)
+
+        ttk.Label(main_frame, text="รายละเอียดมงคลเชิงลึก (auspice_detail_th):", font=('Tahoma', 10, 'bold')).pack(anchor='w', pady=5)
+        self.auspice_text = tk.Text(main_frame, wrap="word", height=7, width=80)
+        self.auspice_text.pack(fill='x', pady=2)
+
+        # --- Control Buttons ---
+        control_frame = ttk.Frame(self, padding="0 10 0 10")
+        control_frame.pack(fill='x')
+        
+        save_text = "บันทึกข้อมูล" if self.mode == 'add' else "อัปเดตข้อมูล"
+        ttk.Button(control_frame, 
+                   text=save_text, 
+                   command=self.save_item,
+                   style='SearchButton.TButton').pack(side='left', padx=15, fill='x', expand=True)
+
+        if self.mode == 'edit':
+             ttk.Button(control_frame, 
+                        text="ลบรายการนี้", 
+                        command=self.delete_item,
+                        style='AddButton.TButton').pack(side='left', padx=15, fill='x', expand=True)
+
+        ttk.Button(control_frame, text="ยกเลิก", command=self.destroy).pack(side='right', padx=15, fill='x', expand=True)
+
+    def load_data(self):
+        if self.mode == 'edit' and self.item:
+            self.id_entry.config(state='normal')
+            self.id_entry.insert(0, self.item.get('id', 'N/A'))
+            self.id_entry.config(state='readonly')
+
+            self.name_th_entry.insert(0, self.item.get('name_th', ''))
+            
+            if self.key == 'numerology':
+                 self.number_entry.insert(0, self.item.get('number_value', ''))
+            
+            if self.key == 'chakra':
+                 self.name_en_entry.insert(0, self.item.get('name_en', ''))
+                 self.location_entry.insert(0, self.item.get('location', ''))
+                 self.color_entry.insert(0, self.item.get('color', ''))
+                 self.logo_entry.insert(0, self.item.get('logo', ''))
+            
+            # Load Text Areas
+            self.history_text.insert('1.0', self.item.get('history_th', ''))
+            self.auspice_text.insert('1.0', self.item.get('auspice_detail_th', ''))
+        
+        elif self.mode == 'add':
+            # Set New ID
+            current_list = self.parent_app.ALL_DATA[self.key]
+            new_id = generate_new_id(current_list)
+            self.id_entry.config(state='normal')
+            self.id_entry.insert(0, str(new_id))
+            self.id_entry.config(state='readonly')
+
+    def save_item(self):
+        new_data = {
+            'id': int(self.id_entry.get()),
+            'name_th': self.name_th_entry.get().strip(),
+            'history_th': self.history_text.get('1.0', tk.END).strip(),
+            'auspice_detail_th': self.auspice_text.get('1.0', tk.END).strip()
+        }
+        
+        # จัดการ fields เฉพาะ
+        if self.key == 'numerology':
+             try:
+                 new_data['number_value'] = int(self.number_entry.get())
+             except:
+                 messagebox.showerror("Error", "ค่าตัวเลขต้องเป็นจำนวนเต็มเท่านั้น")
+                 return
+        
+        if self.key == 'chakra':
+             new_data['name_en'] = self.name_en_entry.get().strip()
+             new_data['location'] = self.location_entry.get().strip()
+             new_data['color'] = self.color_entry.get().strip()
+             new_data['logo'] = self.logo_entry.get().strip()
+        
+        # คัดลอกข้อมูลเก่าที่ไม่เกี่ยวข้องกับ CRUD text fields (เช่น name_en, color, location)
+        # เพื่อป้องกันข้อมูลอื่น ๆ หายไปเมื่อทำการ Update
+        new_data = {**self.item, **new_data} 
+        
+        # 1. อัปเดต List หลัก (self.parent_app.ALL_DATA)
+        current_list = self.parent_app.ALL_DATA[self.key]
+        
+        if self.mode == 'edit':
+            for i, item in enumerate(current_list):
+                if item.get('id') == new_data['id']:
+                    current_list[i] = new_data
+                    break
+            message = f"อัปเดตข้อมูล {self.display_name} ID:{new_data['id']} สำเร็จ"
+        else:
+            current_list.append(new_data)
+            message = f"เพิ่มข้อมูล {self.display_name} ID:{new_data['id']} สำเร็จ"
+            
+        # 2. บันทึกกลับไปที่ JSON
+        if self._save_lookup_to_json(current_list):
+            messagebox.showinfo("บันทึกสำเร็จ", message)
+            self.parent_app.ALL_DATA = load_all_data() # โหลดข้อมูลหลักใหม่เพื่ออัปเดต Pop-up
+            self.destroy()
+        else:
+             messagebox.showerror("บันทึกไม่สำเร็จ", "การบันทึกไฟล์ JSON ล้มเหลว")
+
+    def delete_item(self):
+         if messagebox.askyesno("ยืนยันการลบ", f"คุณต้องการลบ {self.display_name} ID: {self.item['id']} ใช่หรือไม่?"):
+            current_list = self.parent_app.ALL_DATA[self.key]
+            
+            # ลบออกจาก List
+            new_list = [item for item in current_list if item.get('id') != self.item['id']]
+
+            # บันทึกกลับไปที่ JSON
+            if self._save_lookup_to_json(new_list):
+                messagebox.showinfo("ลบข้อมูล", f"ลบ {self.display_name} ID: {self.item['id']} เรียบร้อยแล้ว")
+                self.parent_app.ALL_DATA = load_all_data() # โหลดข้อมูลหลักใหม่
+                self.destroy()
+            else:
+                 messagebox.showerror("ลบไม่สำเร็จ", "การบันทึกไฟล์ JSON ล้มเหลว")
+
+
+    def _save_lookup_to_json(self, data_list: List[Dict[str, Any]]):
+        """Helper function สำหรับบันทึกข้อมูล Lookup กลับไปยังไฟล์ JSON"""
+        file_path = os.path.join(DATA_FOLDER, f'lookup_{self.key}.json')
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(data_list, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            messagebox.showerror("Save Error", f"ไม่สามารถบันทึกไฟล์ {file_path} ได้: {e}")
+            return False
+
+
 class PyStoneApp(tk.Tk):
     # ------------------------------------------------------------------
     # 3. MAIN APPLICATION CLASS
-    #------------------------------------------------------------------
+    # ------------------------------------------------------------------
     def __init__(self, all_data):
         self.ALL_DATA = all_data
         
@@ -660,10 +905,10 @@ class PyStoneApp(tk.Tk):
             ("ค้นตามกลุ่มมงคล", 'group'), 
             ("ค้นตาม วดป.เกิด", 'date'), 
             ("ค้นหาแบบมีเงื่อนไข", 'condition'),
-            # FIX: เชื่อมโยงกับฟังก์ชันใหม่
-            ("รายละเอียดจักระ", 'Chakra', lambda: self.show_lookup_detail_popup('Chakra')),
-            ("รายละเอียดธาตุ", 'Element', lambda: self.show_lookup_detail_popup('Element')),
-            ("รายละเอียดเลขมงคล", 'Numerology', lambda: self.show_lookup_detail_popup('Numerology'))
+            # FIX: เปลี่ยนกลับมาใช้ show_lookup_detail_popup (Read-Only)
+            ("รายละเอียดจักระ", 'Chakra', lambda: self.show_lookup_detail_popup('chakra')),
+            ("รายละเอียดธาตุ", 'Element', lambda: self.show_lookup_detail_popup('element')),
+            ("รายละเอียดเลขมงคล", 'Numerology', lambda: self.show_lookup_detail_popup('numerology'))
         ]
         
         for item in modes:
@@ -792,7 +1037,7 @@ class PyStoneApp(tk.Tk):
         setattr(self, f'prev_btn_{label_text}', ttk.Button(parent_frame, text="<ก่อนหน้า", command=lambda: self.change_page(-1)))
         getattr(self, f'prev_btn_{label_text}').pack(side='right')
 
-        # FIX: ปุ่ม +เพิ่มข้อมูล ย้ายมาอยู่หน้าปุ่ม 'ก่อนหน้า'
+        # FIX: ปุ่ม +เพิ่มข้อมูล ถูกย้ายไปอยู่หน้าปุ่ม 'ก่อนหน้า'
         if is_top:
             ttk.Button(parent_frame, 
                        text="+ เพิ่มข้อมูล", 
@@ -1195,7 +1440,8 @@ class PyStoneApp(tk.Tk):
             
             # NEW COLUMNS DATA
             chakra_names = format_lookup_list(stone.get('chakra_ids', ''), self.ALL_DATA.get('chakra', []), 'name_th')
-            element_names = format_lookup_list(stone.get('element_ids', ''), self.ALL_DATA.get('elements', []), 'name_th')
+            # **** FIX: ใช้คีย์ 'element' (ไม่มี s) ****
+            element_names = format_lookup_list(stone.get('element_ids', ''), self.ALL_DATA.get('element', []), 'name_th')
             numerology_values = format_lookup_list(stone.get('numerology_ids', ''), self.ALL_DATA.get('numerology', []), 'number_value')
             
             # จัดรูปแบบชื่อหิน
@@ -1328,7 +1574,7 @@ class PyStoneApp(tk.Tk):
         StoneCrudModal(self, mode, stone_data)
 
     def show_detail_popup(self, stone: Dict[str, Any]):
-        """แสดงรายละเอียดหินแบบ Pop-up/Modal"""
+        """แสดงรายละเอียดหินแบบ Pop-up/Modal พร้อมปุ่ม Export"""
         
         detail_window = tk.Toplevel(self)
         detail_window.title(f"รายละเอียด: {stone['thai_name']}")
@@ -1353,8 +1599,24 @@ class PyStoneApp(tk.Tk):
         text_widget.insert('1.0', detail_text)
         text_widget.config(state='disabled')  # Read-only
 
-        # Close Button
-        ttk.Button(detail_window, text="ปิด", command=detail_window.destroy).pack(pady=10)
+        # --- Control Buttons with Export ---
+        control_frame = ttk.Frame(detail_window, padding="0 10 0 10")
+        control_frame.pack(fill='x')
+        
+        filename_base = f"{stone['thai_name']}_detail"
+
+        # Export Buttons
+        ttk.Button(control_frame, 
+                   text="Export (.txt)", 
+                   command=lambda: export_to_file(detail_text, filename_base, 'text'),
+                   style='SearchButton.TButton').pack(side='left', padx=5)
+        
+        ttk.Button(control_frame, 
+                   text="Export (.pdf)", 
+                   command=lambda: export_to_file(detail_text, filename_base, 'pdf'),
+                   style='SearchButton.TButton').pack(side='left', padx=5)
+        
+        ttk.Button(control_frame, text="ปิด", command=detail_window.destroy).pack(side='right', padx=5)
 
 
     def format_stone_detail(self, stone: Dict[str, Any]) -> str:
@@ -1380,7 +1642,8 @@ class PyStoneApp(tk.Tk):
             f"ปีนักษัตรมงคล: {format_lookup_list_local(stone.get('good_zodiac_animals', ''), self.ALL_DATA['animals'], 'thai_name')}",
             f"ราศีมงคล: {format_lookup_list_local(stone.get('good_zodiac_signs', ''), self.ALL_DATA['signs'], 'name')}",
             f"จักระ: {format_lookup_list_local(stone.get('chakra_ids', ''), self.ALL_DATA.get('chakra', []), 'name_th')}",
-            f"ธาตุ: {format_lookup_list_local(stone.get('element_ids', ''), self.ALL_DATA.get('elements', []), 'name_th')}",
+            # **** FIX: ใช้คีย์ 'element' (ไม่มี s) ****
+            f"ธาตุ: {format_lookup_list_local(stone.get('element_ids', ''), self.ALL_DATA.get('element', []), 'name_th')}", 
             f"เลขศาสตร์: {format_lookup_list_local(stone.get('numerology_ids', ''), self.ALL_DATA.get('numerology', []), 'number_value')}",
             "",
             "--- ข้อมูลเพิ่มเติม ---",
@@ -1406,13 +1669,103 @@ class PyStoneApp(tk.Tk):
             else:
                  messagebox.showerror("ลบไม่สำเร็จ", "การบันทึกไฟล์ JSON ล้มเหลวหลังการลบ")
 
-    def show_lookup_detail_popup(self, mode: str):
+    def open_lookup_crud_modal(self, key: str):
         """
-        แสดง Pop-up รายละเอียดเชิงประวัติศาสตร์ ความมงคล ของ จักระ, ธาตุ, หรือเลขมงคล
+        แสดง Pop-up ตาราง Lookup และปุ่ม CRUD สำหรับจักระ/ธาตุ/เลขมงคล
         """
         detail_window = tk.Toplevel(self)
-        detail_window.title(f"รายละเอียดมงคล: {mode}")
-        detail_window.geometry("800x650")
+        lookup_name_map = {
+            'chakra': 'จักระ', 
+            'element': 'ธาตุ', 
+            'numerology': 'เลขมงคล'
+        }
+        display_name = lookup_name_map.get(key, 'Lookup Item')
+        detail_window.title(f"จัดการข้อมูล: {display_name}")
+        detail_window.geometry("700x500")
+        detail_window.resizable(True, True)
+        detail_window.transient(self)
+        detail_window.grab_set()
+
+        main_frame = ttk.Frame(detail_window, padding="10")
+        main_frame.pack(fill='both', expand=True)
+
+        lookup_data = self.ALL_DATA.get(key, [])
+
+        # --- Treeview Setup ---
+        columns = ('ID', 'Name', 'Detail')
+        tree = ttk.Treeview(main_frame, columns=columns, show='headings', selectmode='browse')
+        
+        tree.heading('ID', text='ID'); tree.column('ID', width=50, stretch=tk.NO, anchor='center')
+        tree.heading('Name', text='ชื่อไทย'); tree.column('Name', width=150, anchor='w')
+        tree.heading('Detail', text='รายละเอียดมงคล (Auspiece Detail)'); tree.column('Detail', width=500, anchor='w')
+        
+        # Populate Data
+        for item in lookup_data:
+            name = item.get('name_th', item.get('english_name', '-'))
+            # สำหรับเลขศาสตร์ ให้แสดงค่าตัวเลข
+            if key == 'numerology':
+                 name = f"เลข {item.get('number_value', '-')}: {name}"
+            
+            detail_snippet = item.get('auspice_detail_th', 'N/A')
+            
+            tree.insert('', 'end', 
+                        values=(item['id'], name, detail_snippet[:100] + '...'), 
+                        iid=item['id'])
+            
+        tree.pack(fill='both', expand=True, padx=5, pady=5)
+        
+        # --- Control Buttons ---
+        control_frame = ttk.Frame(main_frame)
+        control_frame.pack(fill='x', pady=5)
+        
+        def open_edit_modal():
+            selected_item_id = tree.focus()
+            if not selected_item_id:
+                messagebox.showwarning("เลือกรายการ", "กรุณาเลือกรายการที่ต้องการแก้ไขก่อน")
+                return
+            
+            item_id = int(selected_item_id)
+            selected_data = next((item for item in lookup_data if item['id'] == item_id), None)
+            
+            if selected_data:
+                 detail_window.destroy() # ปิดตารางก่อนเปิด modal
+                 LookupCrudModal(self, key, 'edit', selected_data)
+        
+        def open_add_modal():
+            detail_window.destroy() # ปิดตารางก่อนเปิด modal
+            LookupCrudModal(self, key, 'add', None)
+        
+        # Double Click Action (เพื่อเข้าสู่หน้าแก้ไขอย่างรวดเร็ว)
+        tree.bind('<Double-1>', lambda event: open_edit_modal())
+            
+        ttk.Button(control_frame, 
+                   text=f"➕ เพิ่ม {display_name} ใหม่", 
+                   command=open_add_modal,
+                   style='SearchButton.TButton').pack(side='left', padx=5)
+
+        ttk.Button(control_frame, 
+                   text=f"✏️ แก้ไขรายการที่เลือก", 
+                   command=open_edit_modal,
+                   style='SearchButton.TButton').pack(side='left', padx=5)
+
+        ttk.Button(control_frame, text="ปิด", command=detail_window.destroy).pack(side='right', padx=5)
+
+
+    def show_lookup_detail_popup(self, key: str):
+        """
+        แสดง Pop-up รายละเอียดเชิงประวัติศาสตร์และความมงคลแบบอ่านอย่างเดียว
+        พร้อมปุ่ม "จัดการข้อมูล" (CRUD Admin)
+        """
+        detail_window = tk.Toplevel(self)
+        lookup_name_map = {
+            'chakra': 'จักระ', 
+            'element': 'ธาตุ', 
+            'numerology': 'เลขมงคล'
+        }
+        display_name = lookup_name_map.get(key, 'Lookup Item')
+        
+        detail_window.title(f"รายละเอียดมงคล: {display_name}")
+        detail_window.geometry("850x700") # ขยายกรอบให้ใหญ่ขึ้น
         detail_window.resizable(True, True)
         detail_window.transient(self)
         detail_window.grab_set()
@@ -1420,96 +1773,122 @@ class PyStoneApp(tk.Tk):
         main_frame = ttk.Frame(detail_window, padding="15")
         main_frame.pack(fill='both', expand=True)
 
-        text_widget = tk.Text(main_frame, wrap='word', font=('Tahoma', 10), padx=10, pady=10)
+        # ใช้ tk.Text สำหรับการจัดรูปแบบขั้นสูง
+        text_widget = tk.Text(main_frame, wrap='word', font=('Tahoma', 11), padx=15, pady=15, relief="groove", borderwidth=2, bg="#F9F9F9")
         text_widget.pack(fill='both', expand=True, side='left')
 
         scrollbar = ttk.Scrollbar(main_frame, orient='vertical', command=text_widget.yview)
         scrollbar.pack(side='right', fill='y')
         text_widget.configure(yscrollcommand=scrollbar.set)
         
-        # 1. รวบรวมข้อมูลรายละเอียดจาก Lookups
-        lookup_data = self.ALL_DATA.get(mode.lower(), [])
+        # 1. ตั้งค่า Tags สำหรับ Styling
+        self._setup_text_tags(text_widget)
         
-        # 2. Hardcode รายละเอียดเชิงประวัติศาสตร์และความมงคล
-        history_and_meaning = ""
-        
-        if mode == 'Chakra':
-            history_and_meaning = self._get_chakra_details(lookup_data)
-        elif mode == 'Element':
-            history_and_meaning = self._get_element_details(lookup_data)
-        elif mode == 'Numerology':
-            history_and_meaning = self._get_numerology_details(lookup_data)
+        lookup_data = self.ALL_DATA.get(key, [])
+        raw_content = self._format_detail_view(key, lookup_data) # ดึงเนื้อหาที่มี Marker
 
-        # 3. แสดงผล
-        text_widget.insert('1.0', history_and_meaning)
+        # 2. ใส่เนื้อหาและประยุกต์ใช้ Tags
+        text_widget.insert('1.0', raw_content)
+        self._apply_text_formatting(text_widget) # ไฮไลต์ตาม Marker ที่กำหนด
+        
         text_widget.config(state='disabled')
+        
+        # --- Export Buttons & Control ---
+        control_frame = ttk.Frame(detail_window, padding="0 10 0 10")
+        control_frame.pack(fill='x')
+        
+        filename_base = f"{key}_details"
+        
+        # Export Buttons
+        ttk.Button(control_frame, 
+                   text="Export (.txt)", 
+                   command=lambda: export_to_file(raw_content, filename_base, 'text'),
+                   style='SearchButton.TButton').pack(side='left', padx=5)
+        
+        ttk.Button(control_frame, 
+                   text="Export (.pdf)", 
+                   command=lambda: export_to_file(raw_content, filename_base, 'pdf'),
+                   style='SearchButton.TButton').pack(side='left', padx=5)
 
-        ttk.Button(detail_window, text="ปิด", command=detail_window.destroy).pack(pady=10)
+        # ปุ่ม Admin (เข้าสู่โหมด CRUD)
+        ttk.Button(control_frame, 
+                   text=f"⚙️ จัดการ/แก้ไข ข้อมูล {display_name}", 
+                   command=lambda: [detail_window.destroy(), self.open_lookup_crud_modal(key)],
+                   style='AddButton.TButton').pack(side='left', padx=15)
         
-        
-    def _get_chakra_details(self, lookup_data: List[Dict[str, Any]]) -> str:
-        """สร้างข้อความรายละเอียดจักระ (ดึงจาก JSON)"""
-        
-        detail = "🧘‍♂️ **จักระ (Chakra): ศูนย์พลังงานแห่งชีวิต**\n\n"
-        
-        # 1. แสดงรายละเอียดประวัติศาสตร์และความเชื่อรวม (ดึงจากรายการใดรายการหนึ่ง เช่น ID 1)
-        # ใช้รายการแรกในการแสดงข้อมูลรวม
-        data_item = next((item for item in lookup_data if item['id'] == 1), None)
-        
-        if data_item:
-            history_th = data_item.get('history_th', 'ไม่พบข้อมูลประวัติศาสตร์รวม')
-            auspice_th_general = data_item.get('auspice_detail_th', 'ไม่พบข้อมูลความเชื่อรวม')
+        ttk.Button(control_frame, text="ปิด", command=detail_window.destroy).pack(side='right', padx=15)
 
-            detail += f"(1). ประวัติและความเป็นมา\n{history_th}\n\n"
-            detail += f"(2). ความเชื่อและมงคล\n{auspice_th_general}\n\n"
+
+    def _setup_text_tags(self, text_widget: tk.Text):
+        """กำหนด Style Tags สำหรับ Tkinter Text Widget"""
         
-        detail += "(3). รายละเอียดจักระหลัก\n"
+        # Header (ใหญ่สุด)
+        text_widget.tag_configure('header', font=('Tahoma', 16, 'bold'), foreground='#2E86C1', justify='center')
         
-        # 2. สร้างตารางรายละเอียดจักระรายจุด
-        for item in lookup_data:
-            id = item.get('id')
-            name_th = item.get('name_th', '-')
-            name_en = item.get('name_en', '-')
-            location = item.get('location', '-')
-            auspice_detail = item.get('auspice_detail_th', 'N/A') # ดึงรายละเอียดรายจุด
+        # SubHeader (ชื่อหัวข้อหลัก)
+        text_widget.tag_configure('subheader', font=('Tahoma', 12, 'bold'), foreground='#8E44AD', spacing3=8)
+
+        # Title (ชื่อรายการแต่ละตัว)
+        text_widget.tag_configure('title', font=('Tahoma', 11, 'bold'), foreground='#D35400', spacing3=5)
+        
+        # Key Detail (ชื่อฟิลด์สำคัญ เช่น 'ประวัติ', 'มงคล')
+        text_widget.tag_configure('key_detail', font=('Tahoma', 11, 'bold'), foreground='#28B463')
+        
+        # Bold (สำหรับเน้นข้อความใน Detail)
+        text_widget.tag_configure('bold', font=('Tahoma', 11, 'bold'))
+
+
+    def _apply_text_formatting(self, text_widget: tk.Text):
+        """ใช้การค้นหาข้อความ (Marker) เพื่อประยุกต์ใช้ Tags"""
+        
+        text_content = text_widget.get("1.0", tk.END)
+        
+        # 1. Apply Header (บรรทัดแรก)
+        text_widget.tag_add('header', "1.0", "1.end")
+
+        # 2. Apply SubHeaders (### 1. ประวัติ... / ### 2. รายละเอียด...)
+        start_index = "2.0" # เริ่มตั้งแต่บรรทัดที่ 2
+        while True:
+            # ค้นหาหัวข้อที่เริ่มต้นด้วย '###'
+            idx = text_widget.search("###", start_index, stopindex=tk.END)
+            if not idx: break
             
-            detail += f"**[{id}] {name_th} ({name_en})**\n"
-            detail += f" - ตำแหน่ง: {location}\n"
-            detail += f" - มงคล: {auspice_detail}\n\n"
+            line_end = text_widget.search('\n', idx, stopindex=tk.END)
+            if not line_end: line_end = tk.END
             
-        return detail
-        
+            text_widget.tag_add('subheader', idx, f"{line_end}-1c")
+            start_index = line_end # เริ่มค้นหาจากบรรทัดถัดไป
 
-    def _get_element_details(self, lookup_data: List[Dict[str, Any]]) -> str:
-        """สร้างข้อความรายละเอียดธาตุ (ดึงจาก JSON และใช้ความสัมพันธ์ตามชื่อธาตุ)"""
-        
-        detail = "🌟 **ธาตุทั้งห้า (Wǔxíng): วัฏจักรแห่งจักรวาล**\n\n"
-        
-        if not lookup_data:
-            return "❌ Error: ไม่พบข้อมูลธาตุ (Element) ในไฟล์ JSON lookup_element.json โปรดตรวจสอบการโหลดข้อมูล"
-
-        # 1. แสดงรายละเอียดประวัติศาสตร์และความเชื่อรวม
-        detail += "(1). ประวัติและความเป็นมา\n"
-        detail += "ธาตุทั้งห้า (五行 - Wǔxíng) เป็นแนวคิดพื้นฐานในปรัชญาจีนโบราณ อธิบายความสัมพันธ์และปฏิสัมพันธ์ระหว่างสิ่งต่างๆ ในจักรวาล ประกอบด้วย ไม้ ไฟ ดิน ทอง/โลหะ และน้ำ แต่ละธาตุมีคุณสมบัติและความสัมพันธ์ในการส่งเสริมและควบคุมซึ่งกันและกัน\n\n"
-        
-        detail += "(2). ความเชื่อและความมงคล\n"
-        detail += "ความมงคลของธาตุอยู่ที่ **ความสมดุล** และ **วัฏจักรส่งเสริม (相生)** การเลือกหินตามธาตุเกิดเป็นการเสริมพลังที่ขาด เพื่อให้เกิดความกลมกลืนกับธรรมชาติและพลังงานรอบตัว\n\n"
-
-        detail += "(3). รายละเอียดธาตุและความมงคล\n"
-        
-        # 2. สร้างตารางรายละเอียดธาตุรายจุด
-        for item in lookup_data:
-            id = item.get('id')
-            name_th = item.get('name_th', '-')
-            name_en = item.get('name_en', '-')
-            auspice_detail = item.get('auspice_detail_th', 'N/A')
+        # 3. Apply Titles (--- ชื่อรายการ ---)
+        start_index = "1.0"
+        while True:
+            # ค้นหาหัวข้อที่เริ่มต้นด้วย '---'
+            idx = text_widget.search("---", start_index, stopindex=tk.END)
+            if not idx: break
             
-            detail += f"**[{id}] ธาตุ {name_th} ({name_en})**\n"
-            detail += f" - คุณสมบัติ: {auspice_detail}\n"
-            detail += f" - วัฏจักรส่งเสริม: {name_th} สร้าง {self._get_next_element_name(name_th)}\n\n"
+            line_end = text_widget.search('\n', idx, stopindex=tk.END)
+            if not line_end: line_end = tk.END
             
-        return detail
+            # ตรวจสอบว่าบรรทัดนั้นมีคำว่า "---" อยู่
+            if text_widget.get(idx, line_end).strip().startswith("---"):
+                text_widget.tag_add('title', idx, f"{line_end}-1c")
+            
+            start_index = line_end # เริ่มค้นหาจากบรรทัดถัดไป
+            
+        # 4. Apply Key Details (เช่น **1. ประวัติ:**)
+        start_index = "1.0"
+        while True:
+            # ค้นหาหัวข้อที่เริ่มต้นด้วย '**1. ประวัติ:**' หรือ '**2. รายละเอียด:**'
+            idx = text_widget.search("**1. ประวัติ", start_index, stopindex=tk.END)
+            if not idx: idx = text_widget.search("**2. รายละเอียด", start_index, stopindex=tk.END)
+            if not idx: break
 
+            line_end = text_widget.search('\n', idx, stopindex=tk.END)
+            if not line_end: line_end = tk.END
+            
+            # เน้นแค่ส่วนหัวข้อ
+            text_widget.tag_add('key_detail', idx, f"{line_end}-1c")
+            start_index = line_end
 
     def _get_next_element_name(self, current_name: str) -> str:
         """Helper function สำหรับแสดงวัฏจักรส่งเสริม (ใช้ชื่อธาตุในการคำนวณ)"""
@@ -1526,28 +1905,75 @@ class PyStoneApp(tk.Tk):
         # ค้นหาธาตุที่ถูกสร้างโดยธาตุปัจจุบัน
         return relationship.get(current_name, 'N/A')
 
-    def _get_numerology_details(self, lookup_data: List[Dict[str, Any]]) -> str:
-        """สร้างข้อความรายละเอียดเลขมงคล (ดึงจาก JSON)"""
+    
+    def _format_detail_view(self, key: str, lookup_data: List[Dict[str, Any]]) -> str:
+        """
+        Helper function สำหรับจัดรูปแบบข้อมูลทั้งหมด (ประวัติ + รายละเอียดมงคล) 
+        ตามโครงสร้างเฉพาะของแต่ละ Lookup (จักระ, ธาตุ, เลขมงคล)
+        """
+        detail = ""
         
-        detail = "🔢 **เลขศาสตร์ (Numerology): พลังงานจากตัวเลข**\n\n"
+        # --- 1. Header ---
+        header_map = {'chakra': '🧘‍♂️ 7 จักระ (Chakra)', 'element': '🌟 5 ธาตุ (Wǔxíng)', 'numerology': '🔢 เลขศาสตร์ (Numerology)'}
+        display_name = header_map.get(key, 'รายละเอียด')
+        detail += f"### {display_name}\n\n"
         
-        # Hardcode ข้อมูลประวัติศาสตร์รวม (เนื่องจากไม่มีใน JSON ปัจจุบัน)
-        detail += "(1). ประวัติและความเป็นมา\n"
-        detail += "เลขศาสตร์เป็นศาสตร์โบราณที่มีรากฐานจากหลายอารยธรรม (เช่น พีทาโกรัส) เชื่อว่าตัวเลขแต่ละตัวมี **ความสั่นสะเทือนทางพลังงาน (Vibrational Energy)** ที่ส่งผลต่อชะตาชีวิตและบุคลิกภาพของมนุษย์\n\n"
-        detail += "(2). ความเชื่อและความมงคล\n"
-        detail += "การเลือกหินมงคลตามเลขศาสตร์จึงเป็นการ **ดึงดูดพลังงานบวก** หรือ **เสริมคุณสมบัติที่ขาด** เพื่อให้ชีวิตเป็นไปตามเป้าหมาย หินที่มีพลังสั่นสะเทือนตรงกับเลขมงคลจะช่วยเสริมพลังงานนั้นให้เข้มแข็งขึ้น\n\n"
+        if not lookup_data:
+             return detail + "❌ ไม่พบข้อมูลในไฟล์ JSON"
+
+        # --- 2. จัดรูปแบบเฉพาะสำหรับแต่ละ Key ---
         
-        detail += "(3). รายละเอียดเลขมงคล (1-9)\n"
-        
-        # สร้างตารางรายละเอียดเลขมงคล
-        # กรองเฉพาะเลข 1-9 และจัดเรียง
-        lookup_data.sort(key=lambda x: x.get('number_value', 0))
-        for item in [d for d in lookup_data if d.get('number_value') in range(1, 10)]:
-            number = item.get('number_value', '-')
-            auspice_detail = item.get('auspice_detail_th', item.get('meaning_th', 'N/A')) # ดึงจากช่องใหม่ก่อน ถ้าไม่มีให้ดึงจากช่องเดิม
+        if key == 'numerology':
+            detail += "### 1. ประวัติและความเป็นมา\n"
+            detail += "เลขศาสตร์มีรากฐานจากหลายอารยธรรม (เช่น พีทาโกรัส) เชื่อว่าตัวเลขแต่ละตัวมี 'ความสั่นสะเทือนทางพลังงาน' ที่ส่งผลต่อชะตาชีวิตและบุคลิกภาพของมนุษย์\n\n"
+            detail += "### 2. รายละเอียดมงคลเลข 1-9\n"
+            detail += "----------------------------------------------\n"
             
-            detail += f"**[{number}] เลข {number}**\n"
-            detail += f" - มงคล: {auspice_detail}\n\n"
+            sorted_data = sorted([d for d in lookup_data if d.get('number_value') in range(1, 10)], key=lambda x: x.get('number_value', 0))
+            
+            for item in sorted_data:
+                number = item.get('number_value')
+                auspice_detail = item.get('auspice_detail_th', 'N/A')
+                
+                detail += f"--- [{number}] เลข {number} ---\n"
+                detail += f" - มงคล: {auspice_detail}\n\n"
+        
+        else: # สำหรับ Chakra และ Element (ที่มีรายละเอียดประวัติแยกรายตัว)
+            
+            # กรองและจัดเรียงข้อมูล
+            sorted_data = sorted(lookup_data, key=lambda x: x.get('id', 0))
+
+            for item in sorted_data:
+                id = item.get('id')
+                name_th = item.get('name_th', '-')
+                
+                history_th = item.get('history_th', 'N/A')
+                auspice_detail = item.get('auspice_detail_th', 'N/A')
+                
+                # --- หัวข้อหลัก ---
+                detail += f"----------------------------------------------\n"
+                detail += f"--- {name_th.upper()} (ID: {id}) ---\n"
+                
+                # --- ประวัติ (เฉพาะแต่ละรายการ) ---
+                detail += "**1. ประวัติและความเป็นมา:**\n"
+                detail += f"{history_th}\n\n"
+                
+                # --- รายละเอียดมงคล ---
+                detail += "**2. รายละเอียดเชิงมงคล:**\n"
+                detail += f" - ความเชื่อหลัก: {auspice_detail}\n"
+                
+                if key == 'chakra':
+                    # แสดงรายละเอียดเฉพาะจักระ
+                    detail += f" - ตำแหน่ง: {item.get('location', '-')}\n"
+                    detail += f" - ธาตุ: {item.get('name_th', '-').split('ธาตุ: ')[-1].strip() if 'ธาตุ:' in item.get('name_th', '') else item.get('name_th', '-')}\n"
+                    detail += f" - สัญลักษณ์/โลโก้: {item.get('logo', '-')}\n"
+                    
+                if key == 'element':
+                    # แสดงรายละเอียดเฉพาะธาตุ
+                    detail += f" - คำจำกัดความ: {item.get('description', '-')}\n" 
+                    detail += f" - วัฏจักรส่งเสริม: {name_th} สร้าง {self._get_next_element_name(name_th)}\n"
+                    
+                detail += "\n"
             
         return detail
 
