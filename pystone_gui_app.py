@@ -1578,7 +1578,7 @@ class PyStoneApp(tk.Tk):
         
         detail_window = tk.Toplevel(self)
         detail_window.title(f"รายละเอียด: {stone['thai_name']}")
-        detail_window.geometry("600x500")
+        detail_window.geometry("850x700") # ขยายกรอบให้ใหญ่ขึ้น
         detail_window.resizable(True, True)
 
         # Main Frame
@@ -1586,17 +1586,22 @@ class PyStoneApp(tk.Tk):
         main_frame.pack(fill='both', expand=True)
 
         # Text Widget for Display
-        text_widget = tk.Text(main_frame, wrap='word', font=('Tahoma', 10), padx=10, pady=10)
+        text_widget = tk.Text(main_frame, wrap='word', font=('Tahoma', 11), padx=15, pady=15, relief="groove", borderwidth=2, bg="#F9F9F9")
         text_widget.pack(fill='both', expand=True, side='left')
 
         # Scrollbar
         scrollbar = ttk.Scrollbar(main_frame, orient='vertical', command=text_widget.yview)
         scrollbar.pack(side='right', fill='y')
         text_widget.configure(yscrollcommand=scrollbar.set)
+        
+        # 1. ตั้งค่า Tags สำหรับ Styling
+        self._setup_text_tags(text_widget)
 
         # Format Detail Text
-        detail_text = self.format_stone_detail(stone)
-        text_widget.insert('1.0', detail_text)
+        raw_content = self.format_stone_detail(stone)
+        text_widget.insert('1.0', raw_content)
+        self._apply_text_formatting(text_widget)
+        
         text_widget.config(state='disabled')  # Read-only
 
         # --- Control Buttons with Export ---
@@ -1608,50 +1613,112 @@ class PyStoneApp(tk.Tk):
         # Export Buttons
         ttk.Button(control_frame, 
                    text="Export (.txt)", 
-                   command=lambda: export_to_file(detail_text, filename_base, 'text'),
+                   command=lambda: export_to_file(raw_content, filename_base, 'text'),
                    style='SearchButton.TButton').pack(side='left', padx=5)
         
         ttk.Button(control_frame, 
                    text="Export (.pdf)", 
-                   command=lambda: export_to_file(detail_text, filename_base, 'pdf'),
+                   command=lambda: export_to_file(raw_content, filename_base, 'pdf'),
                    style='SearchButton.TButton').pack(side='left', padx=5)
         
         ttk.Button(control_frame, text="ปิด", command=detail_window.destroy).pack(side='right', padx=5)
 
 
+# ... (ในคลาส PyStoneApp) ...
+
     def format_stone_detail(self, stone: Dict[str, Any]) -> str:
-        """จัดรูปแบบข้อความสำหรับแสดงรายละเอียดหิน"""
-        
+        """
+        จัดรูปแบบข้อความสำหรับแสดงรายละเอียดหิน โดยมีส่วนขยาย Chakra/Element/Numerology
+        """
         def format_lookup_list_local(ids_str, lookup_data, display_key):
             ids = split_ids(ids_str)
             names = [lookup_name(lookup_data, id, display_key) for id in ids]
             return ', '.join(names) if names else '-'
 
-        # Main Details
         lines = [
-            f"ชื่อไทย: {stone['thai_name']}",
-            f"ชื่ออังกฤษ: {stone['english_name']}",
+            f"### รายละเอียดหิน: {stone['thai_name']} ({stone['english_name']})",
             f"ชื่ออื่น ๆ: {stone.get('other_names', '-')}",
-            f"คำอธิบาย: {stone.get('description', '-')[:200]}...",
-            "",
-            "--- ข้อมูลมงคล ---",
-            f"กลุ่ม: {format_lookup_list_local(stone.get('group_ids', ''), self.ALL_DATA['groups'], 'name')}",
-            f"สี: {format_lookup_list_local(stone.get('color_ids', ''), self.ALL_DATA['colors'], 'name')}",
-            f"วันมงคล: {format_lookup_list_local(stone.get('good_days', ''), self.ALL_DATA['days'], 'name')}",
-            f"เดือนมงคล: {format_lookup_list_local(stone.get('good_months', ''), self.ALL_DATA['months'], 'name')}",
-            f"ปีนักษัตรมงคล: {format_lookup_list_local(stone.get('good_zodiac_animals', ''), self.ALL_DATA['animals'], 'thai_name')}",
-            f"ราศีมงคล: {format_lookup_list_local(stone.get('good_zodiac_signs', ''), self.ALL_DATA['signs'], 'name')}",
-            f"จักระ: {format_lookup_list_local(stone.get('chakra_ids', ''), self.ALL_DATA.get('chakra', []), 'name_th')}",
-            # **** FIX: ใช้คีย์ 'element' (ไม่มี s) ****
-            f"ธาตุ: {format_lookup_list_local(stone.get('element_ids', ''), self.ALL_DATA.get('element', []), 'name_th')}", 
-            f"เลขศาสตร์: {format_lookup_list_local(stone.get('numerology_ids', ''), self.ALL_DATA.get('numerology', []), 'number_value')}",
-            "",
-            "--- ข้อมูลเพิ่มเติม ---",
-            f"คำอธิบายเต็ม: {stone.get('description', '-')}",
+            
+            "\n### 1. ข้อมูลทั่วไป (และมงคลพื้นฐาน)",
+            "----------------------------------------------",
+            f"คำอธิบายโดยย่อ: {stone.get('description', '-')[:200]}...",
+            
+            # **** FIX: นำข้อมูลมงคลพื้นฐานกลับมาครบถ้วน ****
+            f"**กลุ่มมงคล:** {format_lookup_list_local(stone.get('group_ids', ''), self.ALL_DATA['groups'], 'name')}",
+            f"**สีหลัก:** {format_lookup_list_local(stone.get('color_ids', ''), self.ALL_DATA['colors'], 'name')}",
+            f"**วันมงคล:** {format_lookup_list_local(stone.get('good_days', ''), self.ALL_DATA['days'], 'name')}",
+            f"**เดือนมงคล:** {format_lookup_list_local(stone.get('good_months', ''), self.ALL_DATA['months'], 'name')}",
+            f"**ปีนักษัตรมงคล:** {format_lookup_list_local(stone.get('good_zodiac_animals', ''), self.ALL_DATA['animals'], 'thai_name')}",
+            f"**ราศีมงคล:** {format_lookup_list_local(stone.get('good_zodiac_signs', ''), self.ALL_DATA['signs'], 'name')}",
+            
         ]
+        
+        # ----------------------------------------------------
+        # NEW EXPANDED SECTIONS (CHAKRA, ELEMENT, NUMEROLOGY)
+        # ----------------------------------------------------
+        
+        # --- CHAKRA ---
+        chakra_ids = split_ids(stone.get('chakra_ids', ''))
+        if chakra_ids:
+            lines.append("\n### 2. ความเชื่อมโยงกับจักระ")
+            lines.append("----------------------------------------------")
+            chakra_lookup = self.ALL_DATA.get('chakra', [])
+            
+            for ch_id in chakra_ids:
+                item = next((c for c in chakra_lookup if c['id'] == ch_id), None)
+                if item:
+                    # FIX: ใช้ชื่อจักระที่ถูกต้องในการนำเสนอ
+                    name_th = item.get('name_th', 'N/A').split('ธาตุ: ')[0].strip() # แยกส่วน 'ธาตุ' ออก
+                    lines.append(f"--- จักระ: {name_th} ---")
+                    lines.append(f" - **ตำแหน่ง:** {item.get('location', '-')}")
+                    lines.append(f" - **ความหมายหลัก:** {item.get('auspice_detail_th', 'N/A')}")
+                    lines.append(f" - สี: {item.get('color', '-')}")
+                else:
+                    lines.append(f"--- จักระ ID {ch_id} (ไม่พบรายละเอียด) ---")
 
+        # --- ELEMENT ---
+        element_ids = split_ids(stone.get('element_ids', ''))
+        if element_ids:
+            lines.append("\n### 3. ความเชื่อมโยงกับธาตุ (五行)")
+            lines.append("----------------------------------------------")
+            element_lookup = self.ALL_DATA.get('element', []) # Use 'element' (no s)
+            
+            for el_id in element_ids:
+                item = next((e for e in element_lookup if e['id'] == el_id), None)
+                if item:
+                    name_th = item.get('name_th', 'N/A')
+                    lines.append(f"--- ธาตุ: {name_th} ---")
+                    lines.append(f" - **คำจำกัดความ:** {item.get('description', '-')}")
+                    lines.append(f" - **ความหมายมงคล:** {item.get('auspice_detail_th', 'N/A')}")
+                    lines.append(f" - วัฏจักรส่งเสริม: {name_th} สร้าง {self._get_next_element_name(name_th)}")
+                else:
+                    lines.append(f"--- ธาตุ ID {el_id} (ไม่พบรายละเอียด) ---")
+
+        # --- NUMEROLOGY ---
+        numerology_ids = split_ids(stone.get('numerology_ids', ''))
+        if numerology_ids:
+            lines.append("\n### 4. ความเชื่อมโยงกับเลขมงคล (เลขศาสตร์)")
+            lines.append("----------------------------------------------")
+            numerology_lookup = self.ALL_DATA.get('numerology', [])
+            
+            # Sort by number value
+            sorted_numbers = sorted(
+                [item for item in numerology_lookup if item.get('id') in numerology_ids],
+                key=lambda x: x.get('number_value', 99)
+            )
+            
+            for item in sorted_numbers:
+                number = item.get('number_value', 'N/A')
+                lines.append(f"--- เลข: {number} ---")
+                lines.append(f" - **ความหมาย:** {item.get('auspice_detail_th', 'N/A')}")
+
+
+        # --- FULL DESCRIPTION (at the end for reference) ---
+        lines.append("\n### 5. คำอธิบายฉบับเต็ม")
+        lines.append("----------------------------------------------")
+        lines.append(f"{stone.get('description', '-')}")
+        
         return '\n'.join(lines)
-
 
     def delete_stone(self, stone: Dict[str, Any]):
         """ยืนยันการลบข้อมูลหิน (Placeholder)"""
@@ -1889,6 +1956,7 @@ class PyStoneApp(tk.Tk):
             # เน้นแค่ส่วนหัวข้อ
             text_widget.tag_add('key_detail', idx, f"{line_end}-1c")
             start_index = line_end
+
 
     def _get_next_element_name(self, current_name: str) -> str:
         """Helper function สำหรับแสดงวัฏจักรส่งเสริม (ใช้ชื่อธาตุในการคำนวณ)"""
