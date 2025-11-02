@@ -1,0 +1,104 @@
+[
+  {
+    "id": 1,
+    "name": "แดง",
+    "english_name": "Red",
+    "hex_code": "#EF4444"
+  },
+  {
+    "id": 2,
+    "name": "เขียว",
+    "english_name": "Green",
+    "hex_code": "#22C55E"
+  },
+  {
+    "id": 3,
+    "name": "ฟ้า",
+    "english_name": "Blue",
+    "hex_code": "#3B82F6"
+  },
+  {
+    "id": 4,
+    "name": "น้ำเงิน",
+    "english_name": "Dark Blue",
+    "hex_code": "#2563EB"
+  },
+  {
+    "id": 5,
+    "name": "เหลือง",
+    "english_name": "Yellow",
+    "hex_code": "#EAB308"
+  },
+  {
+    "id": 6,
+    "name": "ส้ม",
+    "english_name": "Orange",
+    "hex_code": "#F97316"
+  },
+  {
+    "id": 7,
+    "name": "ชมพู",
+    "english_name": "Pink",
+    "hex_code": "#EC4899"
+  },
+  {
+    "id": 8,
+    "name": "ม่วง",
+    "english_name": "Purple",
+    "hex_code": "#8B5CF6"
+  },
+  {
+    "id": 9,
+    "name": "ขาว",
+    "english_name": "White",
+    "hex_code": "#F1F5F9"
+  },
+  {
+    "id": 10,
+    "name": "ดำ",
+    "english_name": "Black",
+    "hex_code": "#1F2937"
+  },
+  {
+    "id": 11,
+    "name": "เทา",
+    "english_name": "Gray",
+    "hex_code": "#6B7280"
+  },
+  {
+    "id": 12,
+    "name": "น้ำตาล",
+    "english_name": "Brown",
+    "hex_code": "#854D0E"
+  },
+  {
+    "id": 13,
+    "name": "ใส",
+    "english_name": "Clear",
+    "hex_code": "#F0F8FF"
+  },
+  {
+    "id": 14,
+    "name": "เงิน",
+    "english_name": "Silver",
+    "hex_code": "#C0C0C0"
+  },
+  {
+    "id": 15,
+    "name": "ทอง",
+    "english_name": "Gold",
+    "hex_code": "#FFD700"
+  },
+  {
+    "id": 16,
+    "name": "น้ำตาลแดง",
+    "english_name": "Red Brown",
+    "hex_code": "#A52A2A"
+  },
+  {
+    "id": 18,
+    "name": "รุ้ง",
+    "english_name": "Rainbow",
+    "hex_code": "#FF0000"
+  }
+]

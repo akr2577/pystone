@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "name": "อาทิตย์",
+    "lucky_color": "แดง",
+    "unlucky_color": "ฟ้า, น้ำเงิน",
+    "sort_order": 1
+  },
+  {
+    "id": 2,
+    "name": "จันทร์",
+    "lucky_color": "ขาว, ครีม, เหลือง",
+    "unlucky_color": "แดง",
+    "sort_order": 2
+  },
+  {
+    "id": 3,
+    "name": "อังคาร",
+    "lucky_color": "ชมพู",
+    "unlucky_color": "ขาว, เหลืองนวล",
+    "sort_order": 3
+  },
+  {
+    "id": 4,
+    "name": "พุธกลางวัน",
+    "lucky_color": "เขียว",
+    "unlucky_color": "ชมพู",
+    "sort_order": 4
+  },
+  {
+    "id": 5,
+    "name": "พุธกลางคืน",
+    "lucky_color": "เทา, ควันบุหรี่",
+    "unlucky_color": "ส้ม, แสด",
+    "sort_order": 5
+  },
+  {
+    "id": 6,
+    "name": "พฤหัสบดี",
+    "lucky_color": "ส้ม, แสด",
+    "unlucky_color": "ดำ, ม่วง",
+    "sort_order": 6
+  },
+  {
+    "id": 7,
+    "name": "ศุกร์",
+    "lucky_color": "ฟ้า, น้ำเงิน",
+    "unlucky_color": "เทา, ควันบุหรี่",
+    "sort_order": 7
+  },
+  {
+    "id": 8,
+    "name": "เสาร์",
+    "lucky_color": "ม่วง, ดำ",
+    "unlucky_color": "เขียว",
+    "sort_order": 8
+  }
+]
